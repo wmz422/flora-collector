@@ -4,6 +4,67 @@
 
 拍张照片自动识别物种，优先从 **iPlant 中国植物志** 拿中文名 + 描述 + 完整分类链，覆盖 PlantNet 的学名分类数据。个人图鉴 + 全球图鉴双轨制，完整分类树（界门纲目科属种）逐层展开。
 
+<div align="center">
+  <img src="assets/screenshots/encyclopedia-tree.jpg" alt="分类树浏览界面" width="80%">
+  <br>
+  <em>🌳 分类树浏览 — 逐层展开，实时显示已发现/总数</em>
+</div>
+
+<br>
+
+<div align="center">
+  <img src="assets/screenshots/encyclopedia-detail.jpg" alt="物种详情界面" width="80%">
+  <br>
+  <em>🔍 物种详情 — 照片、中文名、学名、完整分类链、描述</em>
+</div>
+
+---
+
+## 📖 图鉴系统详解
+
+Flora Collector 的核心是**双图鉴系统**，包含两套相互关联的收集进度：
+
+### 👤 个人图鉴（Personal Encyclopedia）
+
+每当你上传一张照片并成功识别，该物种就会被记录到你的个人图鉴中。
+
+- **从零收集** — 每个新用户从 0 种开始，逐步积累
+- **发现计数** — 每个分类节点（界门纲目科属）都显示你的已发现数 / 全球已开图鉴数
+- **多用户隔离** — 小明和小红各有独立的收集进度，互不干扰
+- **首次发现标记** — 自动记录每个人的首次发现时间
+
+### 🌐 全球图鉴（Global Encyclopedia）
+
+所有用户共享一个物种总库，记录整个系统总共收录了多少物种。
+
+- **物种总量** — 反映数据库全局收录的物种数
+- **共同增长** — 任何用户识别新物种，全球图鉴同步更新
+- **完整覆盖** — 已收录物种别人无需重复识别
+
+### 🌳 分类树（Taxonomy Tree）
+
+所有分类按 **界 → 门 → 纲 → 目 → 科 → 属 → 种** 七级展开，以树形结构展示：
+
+**个人视角：**
+```
+植物界  →  已发现 5/7
+├── 被子植物门  →  4/5
+│   ├── 木兰纲  →  2/2
+│   │   ├── 蔷薇目  →  1/1
+│   │   │   ├── 蔷薇科  →  1/1
+│   │   │   │   ├── 蔷薇属  →  1/1
+│   │   │   │   │   ├── ✅ 月季 (Rosa chinensis)
+│   │   │   │   │   └── 🔒 ???
+│   │   └── 樟目  →  1/1
+│   └── 百合纲  →  2/3
+├── 裸子植物门  →  1/2
+└── ...（更多分支）
+```
+
+- ✅ **已发现物种** — 植物名可见，点击查看详情
+- 🔒 **未发现物种** — 名字隐藏，只显示未知数量，保持探索乐趣
+- 📊 **实时统计** — 每个节点右侧显示「已发现/全球已开」，一目了然
+
 ---
 
 ## ✨ 已实现功能
@@ -15,6 +76,8 @@
 | 🌳 **完整分类树** | 界→门→纲→目→科→属→种 逐层树形展开，显示已发现/总数 | ✅ |
 | 🔒 **未发现隐藏** | 未解锁物种名隐藏，显示 `🔒 ???` | ✅ |
 | 👤 **双图鉴系统** | 个人图鉴（从零收集）+ 全球图鉴（共享增长） | ✅ |
+| 👥 **多用户支持** | 小明/小红独立收集进度，使用 localStorage 区分身份 | ✅ |
+| 🖼️ **图片压缩** | 上传时自动压缩至 1200px，节省带宽和存储 | ✅ |
 | 🔄 **分类覆盖策略** | iPlant 分类 > PlantNet 分类 > 属→纲/门兜底映射表 | ✅ |
 | 🖱️ **响应式前端** | 纯 HTML/CSS/JS，手机电脑均可 | ✅ |
 | 🛠️ **启动自愈** | 服务启动时自动补爬所有缺描述的物种 | ✅ |
@@ -46,6 +109,8 @@ uvicorn src.flora_collector.main:app --host 0.0.0.0 --port 8899 --reload
 
 ```
 用户上传照片
+    ↓
+图片自动压缩（1200px宽度，70%质量）
     ↓
 PlantNet API 识别 → 返回物种学名 + 部分分类
     ↓
@@ -79,18 +144,20 @@ iPlant AJAX API（plantinfo.ashx + getspinfos.ashx）
 | `POST` | `/api/seed/inaturalist/{taxon_id}` | 从 iNaturalist 导入新物种 |
 | `GET` | `/api/search/inaturalist?q=` | 搜索 iNaturalist 物种 |
 
+> **iNaturalist** 是一个全球自然观察社区平台，这里的端点提供手动补充 PlantNet 识别不出的物种，通常作为备用数据源使用。
+
 ## 🗄️ 项目结构
 
 ```
 flora-collector/
 ├── src/flora_collector/
 │   ├── main.py                  # FastAPI 入口 + 启动自愈
-│   ├── config.py                # 配置（数据库 URL、API Key）
+│   ├── config.py                # 配置（数据库 URL、API Key 从 .env 读取）
 │   ├── models.py                # SQLAlchemy 模型（6 分类表 + 双图鉴）
 │   ├── api/
 │   │   └── routes.py            # API 路由（8 个端点）
 │   ├── services/
-│   │   ├── encyclopedia.py      # 双图鉴核心：record_discovery + 统计 + 详情
+│   │   ├── encyclopedia.py      # 📖 双图鉴核心：record_discovery + 统计 + 详情
 │   │   ├── iplant.py            # iPlant AJAX API 客户端（中文名+描述+分类）
 │   │   ├── plantnet.py          # PlantNet API 客户端 + taxonomy 构建
 │   │   ├── mock_plantnet.py     # PlantNet Mock（开发/离线测试用）
@@ -99,6 +166,10 @@ flora-collector/
 │   │   └── inaturalist.py       # iNaturalist API 客户端（手动搜索/导入）
 │   └── static/
 │       └── index.html           # 🌟 树形图鉴前端（纯 HTML/CSS/JS）
+├── assets/
+│   └── screenshots/             # 界面截图
+│       ├── encyclopedia-tree.jpg
+│       └── encyclopedia-detail.jpg
 ├── scripts/
 │   ├── build_full_taxonomy.py   # 完整植物分类骨架构建（9 门 × 多纲 × 多目）
 │   └── archive/                 # 一次性迁移脚本归档
@@ -106,10 +177,9 @@ flora-collector/
 │       ├── fix_unplaced.py
 │       ├── seed_taxonomy_skeleton.py
 │       └── ...（其他旧脚本）
-├── data/
-│   ├── flora.db                 # SQLite 数据库
-│   └── images/                  # 上传的图片
-├── .env                         # API Key
+├── .env                         # 🔒 API Key（不上传）
+├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
