@@ -1,0 +1,12 @@
+*.db
+.env
+__pycache__/
+*.pyc
+.venv/
+data/images/*.jpg
+data/images/*.jpeg
+data/images/*.png
+*.bak
+# Project planning docs (not useful for open-source users)
+PLAN.md
+MORNING_REPORT.md

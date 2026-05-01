@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Flora Collector · 植物图鉴</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+  :root {
+    --g900:#1b4332; --g800:#2d6a4f; --g700:#40916c; --g600:#52b788;
+    --g500:#74c69d; --g300:#95d5b2; --g200:#b7e4c7; --g100:#d8f3dc; --g50:#eafaf0;
+    --gold:#f5a623; --gold-light:#fff3d6;
+    --text:#1a1a2e; --text-sec:#5a6a7a; --text-muted:#9aa6b5;
+    --bg:#f6faf8; --card:#fff; --shadow:0 2px 12px rgba(0,0,0,0.06);
+    --radius:14px; --radius-sm:10px; --line:#e2e8f0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter','Noto Sans SC',-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:0 0 80px 0; -webkit-font-smoothing:antialiased; }
+
+  .header { background:linear-gradient(135deg,var(--g900) 0%,var(--g700) 100%); color:#fff; padding:20px 20px 28px; position:relative; overflow:hidden; }
+  .header::after { content:'🌿'; position:absolute; right:16px; top:8px; font-size:64px; opacity:0.15; transform:rotate(15deg); }
+  .header h1 { font-size:24px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .header .sub { font-size:13px; opacity:0.8; margin-top:2px; }
+
+  .stats-row { display:flex; gap:10px; margin:-14px 16px 0; position:relative; z-index:2; }
+  .stat-card { flex:1; background:var(--card); border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:10px 12px; }
+  .stat-card .lbl { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+  .stat-card .num { font-size:20px; font-weight:700; color:var(--g800); }
+  .stat-card .num .small { font-size:12px; font-weight:400; color:var(--text-muted); }
+  .stat-card .bar { height:4px; background:var(--g100); border-radius:99px; margin-top:4px; overflow:hidden; }
+  .stat-card .bar .fill { height:100%; background:linear-gradient(90deg,var(--g600),var(--g700)); border-radius:99px; transition:width .5s; }
+
+  .section { padding:16px 16px 0; }
+  .section-title { font-size:15px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+  .section-title .tag { font-size:10px; background:var(--g100); color:var(--g800); padding:1px 8px; border-radius:99px; font-weight:500; }
+
+  .upload-card { background:var(--card); border:2px dashed var(--g300); border-radius:var(--radius); padding:18px; text-align:center; cursor:pointer; transition:all .2s; position:relative; }
+  .upload-card:hover,.upload-card.dragover { border-color:var(--g700); background:#d0f0dc; }
+  .upload-card .icon { font-size:26px; }
+  .upload-card .text { font-size:13px; color:var(--text-sec); margin-top:3px; }
+  .upload-card input { display:none; }
+
+  .loading { display:none; align-items:center; justify-content:center; gap:8px; padding:10px; color:var(--g700); font-size:13px; }
+  .loading.show { display:flex; }
+  .spinner { width:18px; height:18px; border:3px solid var(--g200); border-top-color:var(--g700); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .result-toast { display:none; border-radius:var(--radius-sm); box-shadow:var(--shadow); margin-top:8px; padding:12px 16px; }
+  .result-toast.show { display:block; }
+  .result-toast.global-new { border-left:4px solid var(--gold); background:#fffbf0; }
+  .result-toast.user-new { border-left:4px solid var(--g600); background:var(--g50); }
+  .result-toast .rname { font-size:15px; font-weight:600; }
+  .result-toast .rsub { font-size:11px; color:var(--text-sec); margin-top:2px; }
+  .result-toast .rlabel { display:inline-block; font-size:10px; padding:1px 8px; border-radius:4px; margin-top:4px; font-weight:600; }
+  .result-toast .rlabel.global { background:var(--gold-light); color:#a67c00; }
+  .result-toast .rlabel.user { background:var(--g100); color:var(--g800); }
+
+  .tree-container { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:8px 0; }
+  
+  .scope-toggle { display:flex; background:var(--g100); border-radius:99px; padding:3px; margin-bottom:10px; }
+  .scope-toggle .btn { flex:1; text-align:center; padding:6px 0; font-size:12px; font-weight:500; border-radius:99px; cursor:pointer; transition:all .2s; color:var(--text-sec); }
+  .scope-toggle .btn.active { background:var(--card); color:var(--g800); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  .scope-toggle .btn:active { opacity:.7; }
+  .tree-row { display:flex; align-items:center; padding:5px 14px; cursor:pointer; transition:background .12s; gap:5px; user-select:none; -webkit-tap-highlight-color:transparent; }
+  .tree-row:hover { background:var(--g50); }
+  .tree-row .arrow { width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--text-muted); transition:transform .2s; flex-shrink:0; }
+  .tree-row .arrow.expanded { transform:rotate(90deg); }
+  .tree-row .arrow.leaf { opacity:0; }
+  .tree-row .icon { font-size:14px; flex-shrink:0; width:20px; text-align:center; }
+  .tree-row .badge { font-size:9px; background:var(--g100); color:var(--g800); padding:0 5px; border-radius:3px; font-weight:600; flex-shrink:0; line-height:1.6; }
+  .tree-row .name { font-size:12px; font-weight:500; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tree-row .name .sci { font-size:10px; color:var(--text-muted); font-weight:400; font-style:italic; margin-left:3px; }
+  .tree-row .count { font-size:10px; color:var(--text-sec); font-weight:500; flex-shrink:0; margin-left:auto; padding-left:6px; }
+  .tree-row .count .disc { color:var(--g700); font-weight:600; }
+  .tree-children { overflow:hidden; max-height:0; transition:max-height .25s ease; }
+  .tree-children.open { max-height:3000px; }
+  .tree-children .tree-row { padding-left:34px; }
+  .tree-children .tree-children .tree-row { padding-left:54px; }
+  .tree-children .tree-children .tree-children .tree-row { padding-left:74px; }
+  .tree-children .tree-children .tree-children .tree-children .tree-row { padding-left:94px; }
+  .tree-children .tree-children .tree-children .tree-children .tree-children .tree-row { padding-left:114px; }
+  .tree-children .tree-children .tree-children .tree-children .tree-children .tree-children .tree-row { padding-left:134px; }
+
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; align-items:flex-end; justify-content:center; }
+  .modal-overlay.show { display:flex; }
+  .modal { background:var(--card); border-radius:var(--radius) var(--radius) 0 0; width:100%; max-width:500px; max-height:80vh; overflow-y:auto; animation:slideUp .25s ease; padding:0 0 20px; }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .modal .handle { width:36px; height:4px; background:#ddd; border-radius:2px; margin:10px auto 0; }
+  .modal .img-area { width:100%; aspect-ratio:16/9; background:var(--g50); display:flex; align-items:center; justify-content:center; font-size:52px; }
+  .modal .img-area img { width:100%; height:100%; object-fit:cover; }
+  .modal .body { padding:14px 18px; }
+  .modal .body h2 { font-size:17px; }
+  .modal .body h2 .en { font-size:12px; font-weight:400; color:var(--text-sec); font-style:italic; margin-left:5px; }
+  .modal .taxa { display:flex; flex-wrap:wrap; gap:3px; margin:6px 0; }
+  .modal .taxa span { font-size:10px; background:var(--g50); color:var(--g800); padding:1px 7px; border-radius:3px; }
+  .modal .desc { font-size:12px; color:var(--text-sec); line-height:1.6; margin-top:6px; padding:8px 10px; background:#fafafa; border-radius:var(--radius-sm); }
+  .modal .info-row { display:flex; gap:12px; flex-wrap:wrap; margin:8px 0; font-size:11px; color:var(--text-sec); }
+  .modal .info-row strong { color:var(--text); }
+  .modal .close-btn { display:block; width:calc(100% - 36px); margin:10px 18px 0; padding:9px; border:none; background:var(--g100); color:var(--g800); border-radius:var(--radius-sm); font-size:13px; font-weight:500; cursor:pointer; }
+
+  .login-overlay { display:flex; position:fixed; inset:0; background:linear-gradient(135deg,var(--g900) 0%,var(--g700) 100%); z-index:1000; align-items:center; justify-content:center; }
+  .login-box { text-align:center; padding:32px; }
+  .login-box .logo { font-size:64px; margin-bottom:8px; }
+  .login-box h1 { font-size:22px; color:#fff; font-weight:700; margin-bottom:4px; }
+  .login-box .sub { font-size:13px; color:rgba(255,255,255,.7); margin-bottom:24px; }
+  .login-btn { display:block; width:200px; padding:14px; margin:8px auto; font-size:16px; font-weight:600; border:none; border-radius:999px; cursor:pointer; transition:all .2s; }
+  .login-btn.primary { background:#fff; color:var(--g800); }
+  .login-btn.secondary { background:rgba(255,255,255,.15); color:rgba(255,255,255,.9); }
+  .login-btn:active { transform:scale(.96); opacity:.85; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 20px; border-radius:var(--radius-sm); font-size:13px; z-index:1000; opacity:0; transition:opacity .3s; pointer-events:none; }
+  .toast.show { opacity:1; }
+
+  @media(min-width:640px) {
+    body { padding:0 0 40px; }
+    .header { padding:32px 40px 28px; border-radius:0 0 24px 24px; }
+    .stats-row { margin:-14px 24px 0; }
+    .section { padding:20px 24px 0; max-width:960px; margin:0 auto; }
+    .modal { border-radius:var(--radius); margin-bottom:40px; }
+    .modal-overlay { align-items:center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="logo">🌱</div>
+    <h1>Flora Collector</h1>
+    <div class="sub">选择身份开始收集</div>
+    <button class="login-btn primary" onclick="login('default')">🧑 小明</button>
+    <button class="login-btn secondary" onclick="login('friend')">👤 小红</button>
+  </div>
+</div>
+
+<header class="header">
+  <h1>🌱 Flora Collector</h1>
+  <div class="sub">拍照识植物 · 双图鉴收集系统</div>
+</header>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="lbl">🧑 我的图鉴</div>
+    <div class="num"><span id="myDisc">-</span><span class="small">/<span id="myTotal">-</span></span></div>
+    <div class="bar"><div class="fill" id="myBar" style="width:0%"></div></div>
+  </div>
+  <div class="stat-card">
+    <div class="lbl">🌍 全球图鉴</div>
+    <div class="num"><span id="glDisc">-</span><span class="small">/<span id="glTotal">-</span></span></div>
+    <div class="bar"><div class="fill" id="glBar" style="width:0%"></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">📸 拍照鉴定</div>
+  <div class="upload-card" id="uploadZone">
+    <div class="icon">🌿</div>
+    <div class="text">点击上传或拖拽植物照片</div>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+  <div class="loading" id="loading"><div class="spinner"></div><span>识别中...</span></div>
+  <div class="result-toast" id="resultToast"></div>
+</div>
+
+<div class="section">
+  <div class="section-title">🌳 分类树 <span class="tag" id="treeTag"></span></div>
+  <div class="scope-toggle" id="scopeToggle">
+    <div class="btn active" data-scope="user" onclick="setScope('user')">🌱 我的图鉴</div>
+    <div class="btn" data-scope="world" onclick="setScope('world')">🌍 世界图鉴</div>
+  </div>
+  <div class="tree-container" id="treeContainer"><div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">🌱 加载中...</div></div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="img-area" id="modalImg">🌿</div>
+    <div class="body">
+      <h2><span id="modalCn">-</span><span class="en" id="modalEn">-</span></h2>
+      <div class="taxa" id="modalTaxa"></div>
+      <div class="desc" id="modalDesc">暂无描述</div>
+      <div class="info-row" id="modalInfo"></div>
+    </div>
+    <button class="close-btn" onclick="closeModal()">关闭</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api';
+const USERS = {
+  'default': { label: '🧑 小明', emoji: '🧑' },
+  'friend':  { label: '👤 小红', emoji: '👤' },
+};
+const EMOJIS = {bamboo:'🎋',ginkgo:'🍂',rose:'🌹',sunflower:'🌻',lavender:'💜',cactus:'🌵',cherry:'🌸',sakura:'🌸',lotus:'🪷',grape:'🍇',dandelion:'🌼',pine:'🌲',orchid:'🌺',chrysanthemum:'🌼',plum:'🌺',peony:'🌷',azalea:'🌺',camellia:'🌿',osmanthus:'🌼',jasmine:'🌸',rice:'🌾',wheat:'🌾',tea:'🍵',mint:'🌿',willow:'🌿',maple:'🍁',watermelon:'🍉',cucumber:'🥒',tomato:'🍅',aloe:'🌵',mimosa:'🌿',apple:'🍎',peach:'🍑'};
+const RANK_CFG = {kingdom:{icon:'🌍',label:'界'},phylum:{icon:'🌱',label:'门'},class_name:{icon:'🍃',label:'纲'},order:{icon:'🌿',label:'目'},family:{icon:'🌻',label:'科'},genus:{icon:'🌰',label:'属'},species:{icon:'',label:'种'}};
+
+// ── Auth ──
+function login(userId) {
+  localStorage.setItem('flora_user', userId);
+  document.getElementById('loginOverlay').style.display = 'none';
+  renderUserBar();
+  loadStats(); loadTree();
+}
+
+function getUserId() {
+  return localStorage.getItem('flora_user') || '';
+}
+
+function isLoggedIn() {
+  return !!getUserId();
+}
+
+function switchUser(id) {
+  login(id);
+}
+
+// ── API helper (auto-injects X-User-Id) ──
+async function apiFetch(url, options = {}) {
+  const headers = { ...options.headers };
+  const uid = getUserId();
+  if (uid) headers['X-User-Id'] = uid;
+  return fetch(url, { ...options, headers });
+}
+
+function spEmoji(sci,cn){const s=(sci+' '+cn).toLowerCase();for(const[k,v]of Object.entries(EMOJIS)){if(s.includes(k))return v}return'🌿'}
+
+// ── Tree ──
+function buildTreeHTML(node){
+  if(node.rank==='species'){
+    const em=spEmoji(node.scientific_name,node.name);
+    const nm=node.is_discovered
+      ?`<span class="name">${node.name||node.scientific_name}<span class="sci">${node.scientific_name}</span></span>`
+      :`<span class="name" style="color:var(--text-muted)">🔒 ??? <span class="sci">${node.scientific_name}</span></span>`;
+    return `<div class="tree-node" data-sid="${node.species_id}">
+      <div class="tree-row" onclick="openSpecies(${node.species_id})">
+        <span class="arrow leaf">▶</span>
+        <span class="icon">${em}</span>
+        <span class="badge">种</span>
+        ${nm}
+        <span class="count">${node.is_discovered?'✅':'🔒'}</span>
+      </div></div>`;
+  }
+  const cfg=RANK_CFG[node.rank]||{icon:'📁',label:'?'};
+  const ch=(node.children||[]).map(c=>buildTreeHTML(c)).join('');
+  const hasCh=!!ch;
+  return `<div class="tree-node">
+    <div class="tree-row" onclick="toggleNode(this)">
+      <span class="arrow ${hasCh?'':'leaf'}">▶</span>
+      <span class="icon">${cfg.icon}</span>
+      <span class="badge">${cfg.label}</span>
+      <span class="name">${node.chinese_name||node.name}</span>
+      <span class="count"><span class="disc">${node.discovered||0}</span>/${node.total||0}</span>
+    </div>
+    ${hasCh?`<div class="tree-children">${ch}</div>`:''}
+  </div>`;
+}
+
+function toggleNode(el){
+  const ch=el.nextElementSibling;const ar=el.querySelector('.arrow');
+  if(!ch||!ar||ar.classList.contains('leaf'))return;
+  ar.classList.toggle('expanded',ch.classList.toggle('open'));
+}
+
+// ── Two-encyclopedia toggle ──
+let currentScope = 'user';
+
+function setScope(scope) {
+  if (scope === currentScope) return;
+  currentScope = scope;
+  document.querySelectorAll('#scopeToggle .btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.scope === scope);
+  });
+  document.getElementById('treeContainer').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">🌱 加载中...</div>';
+  loadTree();
+}
+
+// ── Data Load ──
+async function loadStats(){
+  try{
+    const[u,g]=await Promise.all([
+      apiFetch(`${API}/encyclopedia/user`).then(r=>r.json()),
+      apiFetch(`${API}/encyclopedia/global`).then(r=>r.json()),
+    ]);
+    document.getElementById('myDisc').textContent=u.user_discovered;
+    document.getElementById('myTotal').textContent=g.total_discovered;
+    document.getElementById('glDisc').textContent=g.total_discovered;
+    document.getElementById('glTotal').textContent=g.total_species;
+    const myPct=g.total_discovered>0?Math.round(u.user_discovered/g.total_discovered*100):0;
+    const glPct=g.total_species>0?Math.round(g.total_discovered/g.total_species*100):0;
+    document.getElementById('myBar').style.width=myPct+'%';
+    document.getElementById('glBar').style.width=glPct+'%';
+  }catch(e){console.error(e)}
+}
+
+async function loadTree(){
+  try{
+    const scope = currentScope;
+    const r=await apiFetch(`${API}/taxonomy/tree?scope=${scope}`);
+    const d=await r.json();
+    const tag = document.getElementById('treeTag');
+    const allSpecies = d.total_species;
+    const discovered = d.tree?.[0]?.discovered ?? 0;
+    tag.textContent = scope === 'user' ? `🧑 ${discovered}/${d.total_discovered}` : `🌍 ${discovered}/${allSpecies}`;
+    if(!d.tree||!d.tree.length){
+      document.getElementById('treeContainer').innerHTML='<div style="text-align:center;padding:40px 30px;color:var(--text-muted);font-size:14px">🌱 你还没发现任何植物<br><span style="font-size:12px">去拍张照片吧！</span></div>';
+      return;
+    }
+    document.getElementById('treeContainer').innerHTML=d.tree.map(n=>buildTreeHTML(n)).join('');
+  }catch(e){
+    document.getElementById('treeContainer').innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted)">😅 加载失败</div>';
+  }
+}
+
+// ── Upload ──
+const uz=document.getElementById('uploadZone'),fi=document.getElementById('fileInput');
+uz.addEventListener('click',()=>fi.click());
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.classList.add('dragover')});
+uz.addEventListener('dragleave',()=>uz.classList.remove('dragover'));
+uz.addEventListener('drop',e=>{e.preventDefault();uz.classList.remove('dragover');if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0])});
+fi.addEventListener('change',()=>{if(fi.files.length)handleFile(fi.files[0])});
+
+async function handleFile(f){
+  if(!f.type.startsWith('image/')){toast('请选择图片');return;}
+  const ld=document.getElementById('loading'),rt=document.getElementById('resultToast');
+  ld.classList.add('show');rt.classList.remove('show');
+  const fd=new FormData();fd.append('image',f);fd.append('organ','leaf');
+  try{
+    const res=await apiFetch(`${API}/identify`,{method:'POST',body:fd});
+    const d=await res.json();
+    if(!res.ok||!d.identified){toast(d.detail||'未能识别');return;}
+    const rtop=d.top_matches[0];
+    const name=rtop.chinese_name||rtop.common_name||rtop.scientific_name;
+    const disc=d.discovery||{};
+    let cls='user-new',label='✅ 已收入图鉴',badge='user';
+    if(disc.is_new_global){cls='global-new';label='🏆 全球首发现！';badge='global';}
+    rt.className=`result-toast show ${cls}`;
+    rt.innerHTML=`
+      <div class="rname">${label} ${name}</div>
+      <div class="rsub">${rtop.scientific_name} · ${rtop.family||'?'} · ${(rtop.score*100).toFixed(0)}%</div>
+      <span class="rlabel ${badge}">${disc.is_new_global?'🌍 全球第1人':disc.is_new_user?'🌟 你的第1次':'🔄 再次发现'}</span>
+    `;
+    toast('🎉 识别成功！');
+    loadStats();loadTree();
+  }catch(e){toast('网络错误')}
+  finally{ld.classList.remove('show');fi.value=''}
+}
+
+// ── Modal ──
+async function openSpecies(id){
+  const ov=document.getElementById('modalOverlay');
+  ov.classList.add('show');
+  ['modalCn','modalEn','modalTaxa','modalDesc','modalInfo'].forEach(id=>document.getElementById(id).innerHTML='');
+  document.getElementById('modalImg').textContent='🌿';
+  try{
+    const r=await apiFetch(`${API}/species/${id}`);
+    const d=await r.json();
+    const s=d.species,gc=d.global_collection||{},uc=d.user_collection;
+    document.getElementById('modalCn').textContent=(uc&&uc.is_discovered)?(s.chinese_name||s.scientific_name):'🔒 ???';
+    document.getElementById('modalEn').textContent=s.scientific_name;
+    const t=document.getElementById('modalTaxa');
+    for(const[l,v,cn] of[['界',s.kingdom,s.kingdom_cn],['门',s.phylum,s.phylum_cn],['纲',s.class_name,s.class_name_cn],['目',s.order,s.order_cn],['科',s.family,s.family_cn],['属',s.genus,s.genus_cn]])
+      if(v)t.innerHTML+=`<span>${l}·${cn||v}</span>`;
+    document.getElementById('modalDesc').textContent=(uc&&uc.is_discovered)?(s.description||'暂无描述'):'🔒 发现后可见';
+    const em=spEmoji(s.scientific_name,s.chinese_name);
+    if(s.image_url&&!s.image_url.includes('/Users/'))
+      document.getElementById('modalImg').innerHTML=`<img src="${s.image_url}" onerror="this.outerHTML='<span style=font-size:52px>${em}</span>'">`;
+    else document.getElementById('modalImg').textContent=em;
+    const info=document.getElementById('modalInfo');
+    if(uc&&uc.is_discovered){
+      info.innerHTML=`
+        <span>🧑 你的: <strong>${uc.discovery_count}</strong> 次</span>
+        <span>🌍 全球: <strong>${gc.total_discoveries||0}</strong> 次 · <strong>${gc.unique_discoverers||0}</strong> 人</span>
+        <span>📊 <strong>${uc.completion_pct}%</strong></span>
+      `;
+      if(uc.records&&uc.records.length){
+        let rec='<div style="margin-top:6px;font-size:11px;color:var(--text-sec)"><strong>发现记录:</strong><ul style="list-style:none;padding:0;margin-top:2px">';
+        uc.records.slice(-5).reverse().forEach(r=>{
+          rec+=`<li style="padding:2px 0;border-bottom:1px solid #f0f0f0">${r.plant_part||'叶'} · ${new Date(r.created_at).toLocaleDateString('zh-CN')}</li>`;
+        });
+        rec+='</ul></div>';
+        info.innerHTML+=rec;
+      }
+    } else {
+      info.innerHTML='<span style="color:var(--text-muted)">🔒 你还没发现这种植物，去拍一张吧！</span>';
+    }
+  }catch(e){document.getElementById('modalCn').textContent='加载失败'}
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('show')}
+document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
+
+function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(e._timer);e._timer=setTimeout(()=>e.classList.remove('show'),2500);}
+
+// ── Init ──
+if (!isLoggedIn()) {
+  document.getElementById('loginOverlay').style.display = 'flex';
+} else {
+  loadStats(); loadTree();
+}
+</script>
+</body>
+</html>
